@@ -11,8 +11,8 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.target>17</maven.compiler.target>
-        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.source>21</maven.compiler.source>
         <aspectj.version>1.9.22.1</aspectj.version>
         <allure.version>2.29.0</allure.version>
     </properties>
@@ -45,7 +45,7 @@
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
-            <version>7.10.2</version>
+            <version>7.11.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>
