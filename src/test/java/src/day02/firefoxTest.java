@@ -10,7 +10,9 @@ public class firefoxTest {
     public void firefoxtest(){
         WebDriver driver= new FirefoxDriver();
         driver.get("https://qa-practice.netlify.app/");
-
+        driver.manage().window().maximize();
+        driver.close(); //close current browser page opened
+        driver.quit(); //close all browser pages opened
 
     }
 }
