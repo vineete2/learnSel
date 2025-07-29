@@ -15,6 +15,7 @@
         <maven.compiler.source>21</maven.compiler.source>
         <aspectj.version>1.9.22.1</aspectj.version>
         <allure.version>2.29.0</allure.version>
+        <log4j.version>2.23.1</log4j.version> <!-- Added for Log4j2 -->
     </properties>
 
     <dependencies>
@@ -80,6 +81,22 @@
             <version>7.11.0</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.opencsv</groupId>
+            <artifactId>opencsv</artifactId>
+            <version>5.7.1</version>
+        </dependency>
+        <dependency>
+            <groupId>com.rometools</groupId>
+            <artifactId>rome</artifactId>
+            <version>1.16.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.2.3</version>  <!-- or the latest version -->
+        </dependency>
+
     </dependencies>
     <build>
         <plugins>
