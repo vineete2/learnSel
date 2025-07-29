@@ -7,6 +7,8 @@ import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.InsertOneOptions;
 import com.opencsv.CSVReader;
 import org.bson.Document;
+import org.bson.conversions.Bson;
+import static com.mongodb.client.model.Filters.eq;
 import org.testng.annotations.Test;
 
 import java.io.InputStreamReader;
@@ -70,17 +72,29 @@ public class CsvFeedTest {
                 MongoCollection<Document> collection = db.getCollection(collectionName);
 
                 System.out.println("✅ Connected to MongoDB Atlas!");
+                int insertedCount = 0;
 
-                // Insert each row as a document
                 for (Map<String, String> entry : csvData) {
-                    Document doc = new Document();
-                    for (Map.Entry<String, String> field : entry.entrySet()) {
-                        doc.append(field.getKey(), field.getValue());
+                    String link = entry.get("Link"); // Assuming 'Link' is the unique identifier
+                    if (link == null || link.isBlank()) {
+                        continue; // Skip if link is missing
                     }
-                    collection.insertOne(doc);
-                    System.out.println("Inserted: " + doc.toJson());
+
+                    Bson filter = eq("Link", link);
+                    if (collection.countDocuments(filter) == 0) {
+                        Document doc = new Document();
+                        for (Map.Entry<String, String> field : entry.entrySet()) {
+                            doc.append(field.getKey(), field.getValue());
+                        }
+                        collection.insertOne(doc);
+                        System.out.println("Inserted: " + doc.toJson());
+                        insertedCount++;
+                    } else {
+                        System.out.println("Skipped (already exists): " + link);
+                    }
                 }
 
+                System.out.println("✅ Finished. Total new entries inserted: " + insertedCount);
             }
         } catch (Exception e) {
             e.printStackTrace();
