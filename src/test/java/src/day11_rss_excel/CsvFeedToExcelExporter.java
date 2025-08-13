@@ -17,8 +17,8 @@ import java.util.*;
 public class CsvFeedToExcelExporter {
 
     private static final String EXCEL_FILE = "rss_export.xlsx";
-    private static final List<String> EXPORT_FIELDS = List.of("Title", "Link", "Plain Description", "Date");
-    private static final String CSV_URL = "https://rss.app/feeds/r2vDqX1gFRa4OpLi.csv";
+    private static final List<String> EXPORT_FIELDS = List.of("Date","Title", "Link", "Plain Description" );
+    private static final String CSV_URL = "https://rss.app/feeds/HHkNKgppGCQVX8l9.csv";
 
     @Test
     public void fetchCsvAndExportToExcel() {
