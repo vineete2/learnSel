@@ -1,4 +1,4 @@
-package src.day11_rss_excel;
+package src.day13_rss_toExcel;
 
 import com.opencsv.CSVReader;
 import com.opencsv.exceptions.CsvValidationException;
@@ -9,17 +9,14 @@ import org.testng.annotations.Test;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class CsvFeedToExcelExporter {
 
     private static final String EXCEL_FILE = "rss_export.xlsx";
-    private static final List<String> EXPORT_FIELDS = List.of("Date","Title", "Link", "Plain Description" );
-    private static final String CSV_URL = //"https://rss.app/feeds/eqUrFiUuAS25VyVi.csv";
-    "https://rss.app/feeds/HHkNKgppGCQVX8l9.csv"; //poland
+    private static final List<String> EXPORT_FIELDS = List.of("Date", "Title", "Link", "Plain Description", "Selenium Mentioned", "Geography");
+    private static final String CSV_URL = "https://rss.app/feeds/HHkNKgppGCQVX8l9.csv"; // Example Poland feed
 
     @Test
     public void fetchCsvAndExportToExcel() {
@@ -43,7 +40,7 @@ public class CsvFeedToExcelExporter {
                     sheet = workbook.getSheetAt(0);
                     for (Row row : sheet) {
                         if (row.getRowNum() == 0) continue;
-                        Cell linkCell = row.getCell(1); // "Link" is second column
+                        Cell linkCell = row.getCell(2); // "Link" is third column
                         if (linkCell != null) {
                             existingLinks.add(linkCell.getStringCellValue());
                         }
@@ -61,6 +58,10 @@ public class CsvFeedToExcelExporter {
             // Step 3: Append only new entries
             int rowCount = sheet.getLastRowNum();
             int inserted = 0;
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"); // Updated format
+            long currentTime = System.currentTimeMillis();
+            long oneDayAgo = currentTime - 86400000L; // 24 hours in milliseconds
+
             for (Map<String, String> entry : csvData) {
                 String link = entry.get("Link");
                 if (link == null || link.isBlank() || existingLinks.contains(link)) {
@@ -68,16 +69,47 @@ public class CsvFeedToExcelExporter {
                     continue;
                 }
 
+                String dateStr = entry.get("Date");
+                Date jobDate = dateFormat.parse(dateStr);
+                if (jobDate.getTime() < oneDayAgo) {
+                    System.out.println("⏭️ Skipped old entry: " + link);
+                    continue;
+                }
+
+                // Check if Selenium is mentioned in the description
+                String description = entry.get("Plain Description");
+                String seleniumMentioned = description != null && description.toLowerCase().contains("selenium") ? "Yes" : "No";
+
+                // Output to console whether Selenium is mentioned
+                System.out.println("🔍 Selenium Mentioned: " + seleniumMentioned + " for Job: " + link);
+
+                // Categorize geography
+                String geography = "Rest of the World";
+                if (entry.get("Location") != null) {
+                    String location = entry.get("Location").toLowerCase();
+                    if (location.contains("poland")) {
+                        geography = "Poland";
+                    } else if (location.contains("germany")) {
+                        geography = "Germany";
+                    }
+                }
+
                 Row row = sheet.createRow(++rowCount);
                 for (int i = 0; i < EXPORT_FIELDS.size(); i++) {
                     String field = EXPORT_FIELDS.get(i);
                     String value = entry.getOrDefault(field, "");
-                    row.createCell(i).setCellValue(value);
+                    if ("Selenium Mentioned".equals(field)) {
+                        row.createCell(i).setCellValue(seleniumMentioned);
+                    } else if ("Geography".equals(field)) {
+                        row.createCell(i).setCellValue(geography);
+                    } else {
+                        row.createCell(i).setCellValue(value);
+                    }
                 }
 
                 existingLinks.add(link);
                 inserted++;
-                System.out.println("✅ Exported: " + link);
+               // System.out.println("✅ Exported: " + link);
             }
 
             // Step 4: Save workbook
@@ -126,5 +158,4 @@ public class CsvFeedToExcelExporter {
 
         return csvData;
     }
-
 }
