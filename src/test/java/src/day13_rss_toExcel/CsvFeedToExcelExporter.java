@@ -15,8 +15,11 @@ import java.util.*;
 public class CsvFeedToExcelExporter {
 
     private static final String EXCEL_FILE = "rss_export.xlsx";
-    private static final List<String> EXPORT_FIELDS = List.of("Date", "Title", "Link", "Plain Description", "Selenium Mentioned", "Geography");
-    private static final String CSV_URL = "https://rss.app/feeds/HHkNKgppGCQVX8l9.csv"; // Example Poland feed
+    private static final List<String> EXPORT_FIELDS = List.of("Date", "Title", "Link", "Plain Description", "Selenium Mentioned");//, "Geography");
+   // private static final String CSV_URL = "https://rss.app/feeds/AQ4aqwJ6o1I2XwbI.csv";
+          //  "https://rss.app/feeds/eqUrFiUuAS25VyVi.csv"; //germny
+
+    private static final String CSV_URL ="https://rss.app/feeds/HHkNKgppGCQVX8l9.csv"; // Example Poland feed
 
     @Test
     public void fetchCsvAndExportToExcel() {
@@ -100,8 +103,8 @@ public class CsvFeedToExcelExporter {
                     String value = entry.getOrDefault(field, "");
                     if ("Selenium Mentioned".equals(field)) {
                         row.createCell(i).setCellValue(seleniumMentioned);
-                    } else if ("Geography".equals(field)) {
-                        row.createCell(i).setCellValue(geography);
+//                    } else if ("Geography".equals(field)) {
+//                        row.createCell(i).setCellValue(geography);
                     } else {
                         row.createCell(i).setCellValue(value);
                     }
