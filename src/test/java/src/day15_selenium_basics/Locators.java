@@ -12,5 +12,9 @@ public class Locators {
         driver.findElement(By.id("inputUsername")).sendKeys("vineet");
         driver.findElement(By.name("inputPassword")).sendKeys("test124");
         driver.findElement(By.className("signInBtn")).click();
+
+        System.out.println(driver.findElement(By.cssSelector("p.error")).getText());
+
+
     }
 }

@@ -18,14 +18,16 @@ import java.util.*;
 public class CsvFeedToExcelExporter {
 
     private static final String EXCEL_FILE = "rss_export.xlsx";
-    private static final List<String> EXPORT_FIELDS = List.of("Date", "Title", "Link", "Plain Description", "Selenium Mentioned"); // , "Geography"
+    private static final List<String> EXPORT_FIELDS = List.of("Date", "Selenium Mentioned","Title", "Link", "Plain Description" ); // , "Geography"
 
     // Example Poland feed (as in your code)
     private static final String CSV_URL =
-            "https://rss.app/feeds/7Zx615XkdgmyuS1f.csv";
-          //  "https://rss.app/feeds/R15PJP9zVhi82WTM.csv"; //Italy
-           // "https://rss.app/feeds/7r0kJmjWJGLowyuy.csv"; //Germany
-         //"https://rss.app/feeds/mExkxQqU9p3yRnCw.csv"; //Poland
+          //  "https://rss.app/feeds/Bo2079SUtLZYsUkz.csv"; //Italy Testing
+           // "https://rss.app/feeds/gDv3NbcYeKVJxUZR.csv"; //Italy
+            "https://rss.app/feeds/DyxSZgo4qf8pS9zb.csv"; //Playwright Germany
+    //  "https://rss.app/feeds/TfrgfHu6qgXhpecJ.csv"; //Belgium
+           //       "https://rss.app/feeds/DnUENi9PYodPnehA.csv"; //Germany
+       //   "https://rss.app/feeds/o498pCwRG99n9WZ0.csv"; //Poland
 
 
     // Candidate header names that may contain the publication date
@@ -85,7 +87,7 @@ public class CsvFeedToExcelExporter {
             // Step 3: Append only new entries from last 24h
             int rowCount = sheet.getLastRowNum();
             long nowMs = System.currentTimeMillis();
-            long oneDayAgoMs = nowMs - 86_400_000L; // 24 hours
+            long oneDayAgoMs = nowMs - 186_400_000L; // 24 hours 186_400_000L 21_600_000L
 
             int inserted = 0;
             for (Map<String, String> entry : csvData) {
