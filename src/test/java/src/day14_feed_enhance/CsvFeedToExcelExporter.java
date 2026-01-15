@@ -14,6 +14,7 @@ import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class CsvFeedToExcelExporter {
 
@@ -22,12 +23,11 @@ public class CsvFeedToExcelExporter {
 
     // Example Poland feed (as in your code)
     private static final String CSV_URL =
-          //  "https://rss.app/feeds/Bo2079SUtLZYsUkz.csv"; //Italy Testing
-           // "https://rss.app/feeds/gDv3NbcYeKVJxUZR.csv"; //Italy
-            "https://rss.app/feeds/DyxSZgo4qf8pS9zb.csv"; //Playwright Germany
-    //  "https://rss.app/feeds/TfrgfHu6qgXhpecJ.csv"; //Belgium
-           //       "https://rss.app/feeds/DnUENi9PYodPnehA.csv"; //Germany
-       //   "https://rss.app/feeds/o498pCwRG99n9WZ0.csv"; //Poland
+            // "https://rss.app/feeds/hwQI4DwXA3EEmslG.csv" //Indeed Germany
+     // "https://rss.app/feeds/HdyrWZxyTJNrRDS2.csv"; //Belgium
+               //  "https://rss.app/feeds/QwBPSWmHyT3UAOwi.csv"; //Germany
+    "https://rss.app/feeds/U5qvPLL82dJID7Sa.csv"; // SQA Germany 2
+//"https://rss.app/feeds/duV08FEGqCxnD8zv.csv"; //Poland
 
 
     // Candidate header names that may contain the publication date
@@ -109,9 +109,30 @@ public class CsvFeedToExcelExporter {
                 }
 
                 // Check if Selenium is mentioned in the description
-                String description = safe(entry.get("Plain Description"));
-                String seleniumMentioned = description.toLowerCase().contains("selenium") ? "Yes" : "No";
-                System.out.println("🔍 Selenium Mentioned: " + seleniumMentioned + " for Job: " + link);
+//                String description = safe(entry.get("Plain Description"));
+//                String seleniumMentioned = description.toLowerCase().contains("selenium") ? "Yes" : "No";
+//                System.out.println("🔍 Selenium Mentioned: " + seleniumMentioned + " for Job: " + link);
+
+                // Check if Selenium, Cypress, or Playwright is mentioned in the description
+                String description = safe(entry.get("Plain Description")).toLowerCase();
+
+                boolean automationMentioned2 =
+                        description.contains("selenium") ||
+                                description.contains("cypress") ||
+                                description.contains("playwright");
+
+                Map<String, String> toolMap = Map.of(
+                        "selenium", "Selenium",
+                        "cypress", "Cypress",
+                        "playwright", "Playwright"
+                );
+
+                String automationMentioned = toolMap.entrySet().stream()
+                        .filter(e -> description.contains(e.getKey()))
+                        .map(Map.Entry::getValue)
+                        .collect(Collectors.joining(", "));
+
+                String seleniumMentioned = automationMentioned;
 
                 // Write row
                 Row row = sheet.createRow(++rowCount);
