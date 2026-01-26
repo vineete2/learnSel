@@ -23,10 +23,10 @@ public class CsvFeedToExcelExporter {
 
     // Example Poland feed (as in your code)
     private static final String CSV_URL =
-            // "https://rss.app/feeds/hwQI4DwXA3EEmslG.csv" //Indeed Germany
+             "https://rss.app/feeds/ewiP5IcVpK6hX8kW.csv"; //Indeed Germany
      // "https://rss.app/feeds/HdyrWZxyTJNrRDS2.csv"; //Belgium
                //  "https://rss.app/feeds/QwBPSWmHyT3UAOwi.csv"; //Germany
-    "https://rss.app/feeds/U5qvPLL82dJID7Sa.csv"; // SQA Germany 2
+  //  "https://rss.app/feeds/eJ0TEDn69t2LYgAK.csv"; // SQA Germany 2
 //"https://rss.app/feeds/duV08FEGqCxnD8zv.csv"; //Poland
 
 
@@ -100,8 +100,9 @@ public class CsvFeedToExcelExporter {
                 // Parse date robustly; skip if missing/unparseable
                 Long pubTimeMs = parsePublishedMillis(entry);
                 if (pubTimeMs == null) {
-                    System.out.println("⚠️ Skipping (no/invalid date): " + link);
-                    continue;
+//                    System.out.println("⚠️ Skipping (no/invalid date): " + link);
+//                    continue;
+                    pubTimeMs = System.currentTimeMillis();
                 }
                 if (pubTimeMs < oneDayAgoMs) {
                     System.out.println("⏭️ Skipped old entry: " + link);
