@@ -1,6 +1,5 @@
 package src.day14_feed_enhance;
 
-
 import com.opencsv.CSVReader;
 import com.opencsv.exceptions.CsvValidationException;
 import org.apache.poi.ss.usermodel.*;
@@ -12,248 +11,247 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class CsvFeedToExcelExporter {
 
     private static final String EXCEL_FILE = "rss_export.xlsx";
-    private static final List<String> EXPORT_FIELDS = List.of("Date", "Selenium Mentioned","Title", "Link", "Plain Description" ); // , "Geography"
+    private static final String SHEET_NAME = "RSS Feed";
 
-    // Example Poland feed (as in your code)
-    private static final String CSV_URL =
-             "https://rss.app/feeds/ewiP5IcVpK6hX8kW.csv"; //Indeed Germany
-     // "https://rss.app/feeds/HdyrWZxyTJNrRDS2.csv"; //Belgium
-               //  "https://rss.app/feeds/QwBPSWmHyT3UAOwi.csv"; //Germany
-  //  "https://rss.app/feeds/eJ0TEDn69t2LYgAK.csv"; // SQA Germany 2
-//"https://rss.app/feeds/duV08FEGqCxnD8zv.csv"; //Poland
-
-
-    // Candidate header names that may contain the publication date
-    private static final List<String> DATE_FIELDS = List.of("Date", "Published", "PubDate", "Published Date", "PublishedAt");
-
-    // Common RSS/CSV date patterns
-    private static final List<DateTimeFormatter> DATE_FORMATTERS = List.of(
-            // ISO-8601 variants
-            DateTimeFormatter.ISO_INSTANT,                                      // 2025-08-18T07:23:45Z
-            DateTimeFormatter.ISO_OFFSET_DATE_TIME,                             // 2025-08-18T07:23:45+00:00
-            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC),
-            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSX").withZone(ZoneOffset.UTC), // 2025-08-18T07:23:45.123Z or +00:00
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault()),
-            // RFC-1123 (typical HTTP/RSS date)
-            DateTimeFormatter.RFC_1123_DATE_TIME,                               // Mon, 18 Aug 2025 07:23:45 GMT
-            // Fallback simple date
-            DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.systemDefault())
+    private static final List<String> EXPORT_FIELDS = List.of(
+            "Date", "Automation Tools", "Title", "Link", "Plain Description"
     );
 
+    private static final String CSV_URL = "https://rss.app/feeds/eJ0TEDn69t2LYgAK.csv"; // SQA Germany 2
+
+    private static final List<String> DATE_FIELDS = List.of("Date", "Published", "PubDate", "Published Date", "PublishedAt");
+
+    private static final List<DateTimeFormatter> DATE_FORMATTERS = List.of(
+            DateTimeFormatter.ISO_INSTANT,
+            DateTimeFormatter.ISO_OFFSET_DATE_TIME,
+            DateTimeFormatter.RFC_1123_DATE_TIME,
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssX"),
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSX"),
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
+            DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss z"),
+            DateTimeFormatter.ofPattern("yyyy-MM-dd")
+    );
+
+    private static final Duration LOOKBACK_PERIOD = Duration.ofHours(25); // little buffer
+
     @Test
-    public void fetchCsvAndExportToExcel() {
-        try {
-            // Step 1: Download CSV from RSS feed
-            List<Map<String, String>> csvData = downloadCsvData(CSV_URL);
-            if (csvData.isEmpty()) {
-                System.out.println("⚠️ No data found in the CSV feed.");
-                return;
+    public void fetchCsvAndExportToExcel() throws Exception {
+        Instant now = Instant.now();
+        Instant since = now.minus(LOOKBACK_PERIOD);
+
+        System.out.printf("Run at %s — looking for entries since %s%n", now, since);
+
+        // 1. Read already known links + find last row
+        Workbook workbook;
+        Sheet sheet;
+        Set<String> knownLinks = new HashSet<>();
+        int nextRowNum;
+
+        File file = new File(EXCEL_FILE);
+        if (file.exists()) {
+            workbook = new XSSFWorkbook(new FileInputStream(file));
+            sheet = workbook.getSheet(SHEET_NAME);
+            if (sheet == null) {
+                sheet = workbook.createSheet(SHEET_NAME);
             }
 
-            // Step 2: Load or create Excel workbook
-            File file = new File(EXCEL_FILE);
-            Workbook workbook;
-            Sheet sheet;
-            Set<String> existingLinks = new HashSet<>();
+            // Read existing links (safer column index lookup)
+            Row header = sheet.getRow(0);
+            int linkColIdx = findColumnIndex(header, "Link");
+            if (linkColIdx < 0) throw new IllegalStateException("Cannot find 'Link' column");
 
-            if (file.exists()) {
-                try (InputStream fis = new FileInputStream(file)) {
-                    workbook = new XSSFWorkbook(fis);
-                    sheet = workbook.getSheetAt(0);
-                    for (Row row : sheet) {
-                        if (row.getRowNum() == 0) continue;
-                        Cell linkCell = row.getCell(2); // "Link" is third column
-                        if (linkCell != null && linkCell.getCellType() == CellType.STRING) {
-                            existingLinks.add(linkCell.getStringCellValue());
-                        }
-                    }
-                }
-            } else {
-                workbook = new XSSFWorkbook();
-                sheet = workbook.createSheet("RSS Feed");
-                Row header = sheet.createRow(0);
-                for (int i = 0; i < EXPORT_FIELDS.size(); i++) {
-                    header.createCell(i).setCellValue(EXPORT_FIELDS.get(i));
+            for (int r = 1; r <= sheet.getLastRowNum(); r++) {
+                Row row = sheet.getRow(r);
+                if (row == null) continue;
+                Cell c = row.getCell(linkColIdx);
+                if (c != null && c.getCellType() == CellType.STRING) {
+                    String link = c.getStringCellValue().trim();
+                    if (!link.isEmpty()) knownLinks.add(link);
                 }
             }
 
-            // Step 3: Append only new entries from last 24h
-            int rowCount = sheet.getLastRowNum();
-            long nowMs = System.currentTimeMillis();
-            long oneDayAgoMs = nowMs - 186_400_000L; // 24 hours 186_400_000L 21_600_000L
-
-            int inserted = 0;
-            for (Map<String, String> entry : csvData) {
-                String link = safe(entry.get("Link"));
-                if (link.isBlank() || existingLinks.contains(link)) {
-                    if (!link.isBlank()) System.out.println("⏭️ Skipped duplicate: " + link);
-                    continue;
-                }
-
-                // Parse date robustly; skip if missing/unparseable
-                Long pubTimeMs = parsePublishedMillis(entry);
-                if (pubTimeMs == null) {
-//                    System.out.println("⚠️ Skipping (no/invalid date): " + link);
-//                    continue;
-                    pubTimeMs = System.currentTimeMillis();
-                }
-                if (pubTimeMs < oneDayAgoMs) {
-                    System.out.println("⏭️ Skipped old entry: " + link);
-                    continue;
-                }
-
-                // Check if Selenium is mentioned in the description
-//                String description = safe(entry.get("Plain Description"));
-//                String seleniumMentioned = description.toLowerCase().contains("selenium") ? "Yes" : "No";
-//                System.out.println("🔍 Selenium Mentioned: " + seleniumMentioned + " for Job: " + link);
-
-                // Check if Selenium, Cypress, or Playwright is mentioned in the description
-                String description = safe(entry.get("Plain Description")).toLowerCase();
-
-                boolean automationMentioned2 =
-                        description.contains("selenium") ||
-                                description.contains("cypress") ||
-                                description.contains("playwright");
-
-                Map<String, String> toolMap = Map.of(
-                        "selenium", "Selenium",
-                        "cypress", "Cypress",
-                        "playwright", "Playwright"
-                );
-
-                String automationMentioned = toolMap.entrySet().stream()
-                        .filter(e -> description.contains(e.getKey()))
-                        .map(Map.Entry::getValue)
-                        .collect(Collectors.joining(", "));
-
-                String seleniumMentioned = automationMentioned;
-
-                // Write row
-                Row row = sheet.createRow(++rowCount);
-                for (int i = 0; i < EXPORT_FIELDS.size(); i++) {
-                    String field = EXPORT_FIELDS.get(i);
-                    String value = switch (field) {
-                        case "Selenium Mentioned" -> seleniumMentioned;
-                        // Normalize the "Date" field to ISO_INSTANT for consistency
-                        case "Date" -> Instant.ofEpochMilli(pubTimeMs).toString();
-                        default -> safe(entry.get(field));
-                    };
-                    row.createCell(i).setCellValue(value);
-                }
-
-                existingLinks.add(link);
-                inserted++;
-            }
-
-            // Auto-size columns for readability
+            nextRowNum = sheet.getLastRowNum() + 1;
+        } else {
+            workbook = new XSSFWorkbook();
+            sheet = workbook.createSheet(SHEET_NAME);
+            Row header = sheet.createRow(0);
             for (int i = 0; i < EXPORT_FIELDS.size(); i++) {
-                sheet.autoSizeColumn(i);
+                header.createCell(i).setCellValue(EXPORT_FIELDS.get(i));
             }
+            nextRowNum = 1;
+        }
 
-            // Step 4: Save workbook
-            try (OutputStream fos = new FileOutputStream(EXCEL_FILE)) {
-                workbook.write(fos);
-            }
+        // 2. Download fresh feed
+        List<Map<String, String>> feedEntries = downloadCsvData(CSV_URL);
+        if (feedEntries.isEmpty()) {
+            System.out.println("No entries in feed.");
             workbook.close();
-
-            System.out.printf("✅ Finished. %d new entries written to %s%n", inserted, EXCEL_FILE);
-
-        } catch (Exception e) {
-            e.printStackTrace();
+            return;
         }
+
+        // 3. Add marker row before new entries
+        int originalRowCount = nextRowNum;
+        if (!feedEntries.isEmpty()) {
+            Row marker = sheet.createRow(nextRowNum++);
+            marker.createCell(0).setCellValue("─── New entries from feed ────────");
+            marker.createCell(1).setCellValue("Source: " + CSV_URL);
+            marker.createCell(2).setCellValue("Fetched: " + now.toString());
+            // optional: make it bold / background color
+            CellStyle style = workbook.createCellStyle();
+            Font font = workbook.createFont();
+            font.setBold(true);
+            style.setFont(font);
+            for (int i = 0; i < 3; i++) {
+                marker.getCell(i).setCellStyle(style);
+            }
+        }
+
+        // 4. Process & append new entries
+        int added = 0;
+        int skippedDuplicate = 0;
+        int skippedOld = 0;
+
+        int dateColIdx    = findColumnIndex(sheet.getRow(0), "Date");
+        int titleColIdx   = findColumnIndex(sheet.getRow(0), "Title");
+        int linkColIdx    = findColumnIndex(sheet.getRow(0), "Link");
+        int descColIdx    = findColumnIndex(sheet.getRow(0), "Plain Description");
+        int toolsColIdx   = findColumnIndex(sheet.getRow(0), "Key");
+
+        for (Map<String, String> entry : feedEntries) {
+            String link = safe(entry.get("Link")).trim();
+            if (link.isEmpty()) continue;
+
+            if (knownLinks.contains(link)) {
+                skippedDuplicate++;
+                // System.out.println("Duplicate: " + link);
+                continue;
+            }
+
+            Instant pubDate = parsePublishedDate(entry);
+            if (pubDate == null || pubDate.isBefore(since)) {
+                skippedOld++;
+                continue;
+            }
+
+            String description = safe(entry.get("Plain Description")).toLowerCase();
+
+            Set<String> tools = extractAutomationTools(description);
+            String toolsStr = tools.isEmpty() ? "" : String.join(", ", tools);
+
+            // Print links
+            System.out.printf("→ ADDING   %-35s   %s%n",
+                    toolsStr.isEmpty() ? "—" : toolsStr,
+                    link.length() > 90 ? link.substring(0, 87) + "…" : link
+            );
+            Row row = sheet.createRow(nextRowNum++);
+            row.createCell(dateColIdx).setCellValue(pubDate.toString());
+            row.createCell(toolsColIdx).setCellValue(toolsStr);
+            row.createCell(titleColIdx).setCellValue(safe(entry.get("Title")));
+            row.createCell(linkColIdx).setCellValue(link);
+            row.createCell(descColIdx).setCellValue(safe(entry.get("Plain Description")));
+
+            knownLinks.add(link);
+            added++;
+        }
+
+        // Auto-size
+        for (int i = 0; i < EXPORT_FIELDS.size(); i++) {
+            sheet.autoSizeColumn(i);
+        }
+
+        // Save
+        try (FileOutputStream out = new FileOutputStream(EXCEL_FILE)) {
+            workbook.write(out);
+        }
+        workbook.close();
+
+        System.out.printf("Done.%n  Added: %d%n  Skipped (duplicate): %d%n  Skipped (old): %d%n  Total rows now: %d%n",
+                added, skippedDuplicate, skippedOld, sheet.getLastRowNum() + 1);
     }
 
-    /** Try to parse a published date from any of the DATE_FIELDS. Returns epoch millis, or null if not parseable. */
-    private Long parsePublishedMillis(Map<String, String> entry) {
-        String raw = null;
-        for (String key : DATE_FIELDS) {
-            raw = entry.get(key);
-            if (raw != null && !raw.isBlank()) break;
-        }
-        if (raw == null || raw.isBlank()) return null;
+    // ────────────────────────────────────────────────────────────────
+    //  Helpers
+    // ────────────────────────────────────────────────────────────────
 
-        String s = raw.trim();
-        // Quick normalization: some feeds use "UTC" literal
-        s = s.replace(" UTC", " GMT");
+    private static Instant parsePublishedDate(Map<String, String> entry) {
+        for (String field : DATE_FIELDS) {
+            String val = safe(entry.get(field)).trim();
+            if (val.isEmpty()) continue;
 
-        // Try all known formatters
-        for (DateTimeFormatter fmt : DATE_FORMATTERS) {
-            try {
-                // First try as Instant (works for ISO_INSTANT/RFC_1123 with zone)
-                Instant inst;
+            for (DateTimeFormatter fmt : DATE_FORMATTERS) {
                 try {
-                    inst = Instant.from(fmt.parse(s));
-                    return inst.toEpochMilli();
-                } catch (DateTimeParseException ignored) {
-                    // Try as LocalDateTime with system default if pattern lacks zone
+                    return Instant.from(fmt.parse(val));
+                } catch (Exception ignore) {
                     try {
-                        LocalDateTime ldt = LocalDateTime.parse(s, fmt);
-                        return ldt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
-                    } catch (DateTimeParseException ignored2) {
-                        // Try as ZonedDateTime
-                        ZonedDateTime zdt = ZonedDateTime.parse(s, fmt);
-                        return zdt.toInstant().toEpochMilli();
-                    }
-                }
-            } catch (DateTimeParseException ignored3) {
-                // try next formatter
-            }
-        }
-        // Last-ditch: some feeds provide epoch seconds/millis as strings
-        try {
-            long n = Long.parseLong(s);
-            if (s.length() <= 10) { // seconds
-                return n * 1000L;
-            } else { // millis
-                return n;
-            }
-        } catch (NumberFormatException ignored) {}
-
-        return null;
-    }
-
-    private static String safe(String v) {
-        return v == null ? "" : v;
-    }
-
-    private List<Map<String, String>> downloadCsvData(String csvUrl) throws IOException {
-        List<Map<String, String>> csvData = new ArrayList<>();
-
-        URL url = new URL(csvUrl);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setRequestMethod("GET");
-
-        try (CSVReader reader = new CSVReader(new InputStreamReader(connection.getInputStream()))) {
-            String[] headers = reader.readNext(); // First row = headers
-            if (headers != null) {
-                String[] row;
-                while (true) {
-                    try {
-                        row = reader.readNext();
-                        if (row == null) break;
-                    } catch (CsvValidationException e) {
-                        System.err.println("⚠️ Skipping malformed CSV row: " + e.getMessage());
-                        continue;
-                    }
-
-                    Map<String, String> rowData = new LinkedHashMap<>();
-                    for (int i = 0; i < headers.length && i < row.length; i++) {
-                        rowData.put(headers[i], row[i]);
-                    }
-                    csvData.add(rowData);
+                        ZonedDateTime zdt = ZonedDateTime.parse(val, fmt);
+                        return zdt.toInstant();
+                    } catch (Exception ignore2) {}
                 }
             }
-        } catch (CsvValidationException e) {
-            throw new RuntimeException(e);
         }
+        return null; // or Instant.now() as fallback — your choice
+    }
 
-        return csvData;
+    private static Set<String> extractAutomationTools(String textLower) {
+        Map<String, String> patterns = Map.of(
+                "selenium",     "Selenium",
+                "cypress",      "Cypress",
+                "playwright",   "Playwright",
+                "webdriver.io", "WebdriverIO",
+                "wdio",         "WebdriverIO",
+                "appium",       "Appium"
+        );
+
+        Set<String> found = new LinkedHashSet<>();
+        for (var e : patterns.entrySet()) {
+            if (textLower.contains(e.getKey())) {
+                found.add(e.getValue());
+            }
+        }
+        return found;
+    }
+
+    private static int findColumnIndex(Row header, String name) {
+        if (header == null) return -1;
+        for (Cell cell : header) {
+            if (cell != null && name.equalsIgnoreCase(cell.getStringCellValue().trim())) {
+                return cell.getColumnIndex();
+            }
+        }
+        return -1;
+    }
+
+    private List<Map<String, String>> downloadCsvData(String urlStr) throws Exception {
+        List<Map<String, String>> data = new ArrayList<>();
+        URL url = new URL(urlStr);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("GET");
+        conn.setConnectTimeout(15000);
+        conn.setReadTimeout(15000);
+
+        try (var reader = new CSVReader(new InputStreamReader(conn.getInputStream()))) {
+            String[] headers = reader.readNext();
+            if (headers == null) return data;
+
+            String[] line;
+            while ((line = reader.readNext()) != null) {
+                Map<String, String> map = new LinkedHashMap<>();
+                for (int i = 0; i < headers.length && i < line.length; i++) {
+                    map.put(headers[i].trim(), line[i]);
+                }
+                data.add(map);
+            }
+        }
+        return data;
+    }
+
+    private static String safe(String s) {
+        return s == null ? "" : s;
     }
 }
